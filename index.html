@@ -1066,37 +1066,7 @@ function logoutUser(){
   auth.signOut();
 }
 
-// Observador de autenticação — ponto central de inicialização
-auth.onAuthStateChanged(async user => {
-  if(user){
-    currentUser = user;
-    // Atualiza chip do usuário
-    const chip = document.getElementById('user-chip');
-    const nameEl = document.getElementById('user-name');
-    const avEl   = document.getElementById('user-av');
-    if(chip) chip.style.display = 'flex';
-    if(nameEl) nameEl.textContent = user.displayName?.split(' ')[0] || 'Usuário';
-    if(avEl){
-      if(user.photoURL) avEl.innerHTML = `<img src="${user.photoURL}" alt="avatar"/>`;
-      else avEl.textContent = (user.displayName||'U')[0].toUpperCase();
-    }
-    // Atualiza sidebar
-    const uname = document.getElementById('user-name-sb');
-    if(uname) uname.textContent = user.displayName?.split(' ')[0] || 'Usuário';
-    // Carrega dados da nuvem
-    await loadFromFirebase();
-    setSyncDot('ok');
-    // Esconde login, mostra app
-    document.getElementById('login-screen').classList.add('hidden');
-    setGreeting(); updatePomoUI(); renderAll();
-  } else {
-    currentUser = null;
-    // Mostra tela de login
-    document.getElementById('login-screen').classList.remove('hidden');
-    const chip = document.getElementById('user-chip');
-    if(chip) chip.style.display = 'none';
-  }
-});
+// auth.onAuthStateChanged registrado no final do script após todas as funções serem definidas
 
 // ── NAV ──
 function go(p,el){
@@ -1490,9 +1460,57 @@ function delSession(id){
 }
 
 // ── INIT ──
-// A inicialização real acontece no auth.onAuthStateChanged acima.
-// Aqui apenas garantimos o midCheck periódico.
-setInterval(midCheck,60000);
+setInterval(midCheck, 60000);
+
+// Observador de autenticação — SEMPRE no final, após todas as funções definidas
+auth.onAuthStateChanged(async user => {
+  if(user){
+    currentUser = user;
+
+    // chip topbar
+    const chip   = document.getElementById('user-chip');
+    const nameEl = document.getElementById('user-name');
+    const avEl   = document.getElementById('user-av');
+    if(chip)   chip.style.display = 'flex';
+    if(nameEl) nameEl.textContent = (user.displayName||'Usuário').split(' ')[0];
+    if(avEl){
+      if(user.photoURL) avEl.innerHTML = `<img src="${user.photoURL}" alt="av" style="width:100%;height:100%;border-radius:50%"/>`;
+      else avEl.textContent = (user.displayName||'U')[0].toUpperCase();
+    }
+
+    // nome sidebar
+    const sb = document.getElementById('user-name-sb');
+    if(sb) sb.textContent = (user.displayName||'Usuário').split(' ')[0];
+
+    // carrega dados
+    try {
+      const doc = await db.collection('users').doc(user.uid).get();
+      if(doc.exists){
+        S = { ...S, ...doc.data() };
+      } else {
+        // primeiro acesso — migra localStorage se existir
+        const local = localStorage.getItem('uf3');
+        if(local){ S = { ...S, ...JSON.parse(local) }; }
+        await db.collection('users').doc(user.uid).set(S);
+      }
+    } catch(e){ console.error('Firestore load error:', e); }
+
+    setSyncDot('ok');
+    midCheck();
+
+    // esconde login, mostra app
+    document.getElementById('login-screen').classList.add('hidden');
+    setGreeting();
+    updatePomoUI();
+    renderAll();
+
+  } else {
+    currentUser = null;
+    document.getElementById('login-screen').classList.remove('hidden');
+    const chip = document.getElementById('user-chip');
+    if(chip) chip.style.display = 'none';
+  }
+});
 </script>
 </body>
 </html>
