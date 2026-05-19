@@ -787,7 +787,9 @@ function setSyncDot(s){const d=document.getElementById('sync-dot');if(d)d.classN
 
 // ── AUTH ──
 function loginGoogle(){
-  auth.signInWithPopup(new firebase.auth.GoogleAuthProvider()).catch(e=>toast('Erro: '+e.message));
+  const provider=new firebase.auth.GoogleAuthProvider();
+  provider.setCustomParameters({prompt:'select_account'});
+  auth.signInWithRedirect(provider).catch(e=>toast('Erro: '+e.message));
 }
 function logoutUser(){
   if(!confirm('Sair da conta?'))return;
@@ -1200,6 +1202,9 @@ function midCheck(){
 setInterval(midCheck,60000);
 
 // ── FIREBASE AUTH ──
+// Processa retorno do redirect do Google
+auth.getRedirectResult().catch(e=>{if(e.code!=='auth/no-current-user')toast('Erro login: '+e.message)});
+
 auth.onAuthStateChanged(async user=>{
   if(user){
     currentUser=user;
