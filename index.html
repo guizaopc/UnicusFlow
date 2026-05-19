@@ -324,15 +324,22 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--t);min-heig
 .frow{display:flex;gap:10px}
 .mf{display:flex;gap:8px;justify-content:flex-end;margin-top:20px}
 
+/* ── LOADING ── */
+#auth-loading{position:fixed;inset:0;z-index:10000;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px}
+#auth-loading.hidden{display:none}
+.ld-logo{width:56px;height:56px;border-radius:16px;background:linear-gradient(135deg,var(--or),var(--ord));display:flex;align-items:center;justify-content:center;font-size:26px;box-shadow:0 0 30px var(--oglow);animation:ld-pulse 1.8s ease-in-out infinite}
+@keyframes ld-pulse{0%,100%{box-shadow:0 0 20px var(--oglow)}50%{box-shadow:0 0 50px var(--oglow)}}
+.ld-txt{font-size:13px;font-weight:600;color:var(--t3);letter-spacing:.5px}
 /* ── LOGIN ── */
-#login-screen{position:fixed;inset:0;z-index:9999;background:var(--bg);display:flex;align-items:center;justify-content:center}
-#login-screen.hidden{display:none}
-.login-box{text-align:center;padding:48px 40px;background:var(--bg2);border:1px solid var(--b2);border-radius:24px;max-width:380px;width:90%}
+#login-screen{position:fixed;inset:0;z-index:9999;background:var(--bg);display:none;align-items:center;justify-content:center;flex-direction:column}
+#login-screen.visible{display:flex}
+.login-box{text-align:center;padding:48px 40px;background:rgba(255,255,255,.04);backdrop-filter:blur(20px);border:1px solid var(--b2);border-radius:24px;max-width:380px;width:90%}
 .login-logo{width:64px;height:64px;border-radius:18px;background:linear-gradient(135deg,var(--or),var(--ord));display:flex;align-items:center;justify-content:center;font-size:30px;margin:0 auto 20px;box-shadow:0 0 30px var(--oglow)}
 .login-title{font-size:26px;font-weight:900;letter-spacing:-1px;margin-bottom:8px}
 .login-sub{font-size:14px;color:var(--t2);margin-bottom:32px;line-height:1.6}
-.btn-google{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:13px 20px;border-radius:12px;background:#fff;color:#1a1a1a;border:none;font-family:'Inter',sans-serif;font-size:14px;font-weight:700;cursor:pointer;transition:all .2s}
-.btn-google:hover{background:#f0f0f0;transform:translateY(-1px);box-shadow:0 4px 16px rgba(0,0,0,.3)}
+.btn-google{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:14px 20px;border-radius:12px;background:#fff;color:#1a1a1a;border:none;font-family:'Inter',sans-serif;font-size:14px;font-weight:700;cursor:pointer;transition:all .2s}
+.btn-google:hover{background:#f0f0f0;transform:translateY(-1px);box-shadow:0 6px 20px rgba(0,0,0,.35)}
+.btn-google:disabled{opacity:.6;cursor:not-allowed;transform:none}
 .btn-google img{width:20px;height:20px}
 .login-footer{font-size:11px;color:var(--t3);margin-top:20px}
 
@@ -379,13 +386,19 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--t);min-heig
 </head>
 <body>
 
+<!-- LOADING -->
+<div id="auth-loading">
+  <div class="ld-logo">🌊</div>
+  <div class="ld-txt">Carregando…</div>
+</div>
+
 <!-- LOGIN -->
 <div id="login-screen">
   <div class="login-box">
     <div class="login-logo">🌊</div>
     <div class="login-title">UnicusFlow</div>
     <div class="login-sub">Seus hábitos, treinos e foco<br>sincronizados em qualquer dispositivo.</div>
-    <button class="btn-google" onclick="loginGoogle()">
+    <button class="btn-google" id="btn-google" onclick="loginGoogle()">
       <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google"/>
       Entrar com Google
     </button>
@@ -787,9 +800,14 @@ function setSyncDot(s){const d=document.getElementById('sync-dot');if(d)d.classN
 
 // ── AUTH ──
 function loginGoogle(){
+  const btn=document.getElementById('btn-google');
+  if(btn){btn.disabled=true;btn.innerHTML='<span style="font-size:16px">⏳</span> Redirecionando…';}
   const provider=new firebase.auth.GoogleAuthProvider();
   provider.setCustomParameters({prompt:'select_account'});
-  auth.signInWithRedirect(provider).catch(e=>toast('Erro: '+e.message));
+  auth.signInWithRedirect(provider).catch(e=>{
+    if(btn){btn.disabled=false;btn.innerHTML='<img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" style="width:20px;height:20px"/> Entrar com Google';}
+    toast('Erro: '+e.message);
+  });
 }
 function logoutUser(){
   if(!confirm('Sair da conta?'))return;
@@ -1202,33 +1220,66 @@ function midCheck(){
 setInterval(midCheck,60000);
 
 // ── FIREBASE AUTH ──
-// Processa retorno do redirect do Google
-auth.getRedirectResult().catch(e=>{if(e.code!=='auth/no-current-user')toast('Erro login: '+e.message)});
+function showLoading(on){
+  document.getElementById('auth-loading').classList.toggle('hidden',!on);
+}
+function showLogin(on){
+  const ls=document.getElementById('login-screen');
+  if(on)ls.classList.add('visible'); else ls.classList.remove('visible');
+}
+async function enterApp(user){
+  currentUser=user;
+  const chip=document.getElementById('user-chip');
+  const nEl=document.getElementById('user-chip-name');
+  const aEl=document.getElementById('user-chip-av');
+  if(chip)chip.style.display='flex';
+  if(nEl)nEl.textContent=(user.displayName||'Usuário').split(' ')[0];
+  if(aEl){if(user.photoURL)aEl.innerHTML=`<img src="${user.photoURL}" alt="av" style="width:100%;height:100%;border-radius:50%"/>`;else aEl.textContent=(user.displayName||'U')[0].toUpperCase()}
+  const sbN=document.getElementById('sb-name');if(sbN)sbN.textContent=(user.displayName||'Usuário').split(' ')[0];
+  const sbA=document.getElementById('sb-av');if(sbA&&user.photoURL)sbA.innerHTML=`<img src="${user.photoURL}" alt="av" style="width:100%;height:100%;border-radius:50%"/>`;
+  try{
+    const doc=await db.collection('users').doc(user.uid).get();
+    if(doc.exists){S={...S,...doc.data()}}
+    else{const local=localStorage.getItem('uf4');if(local)S={...S,...JSON.parse(local)};await db.collection('users').doc(user.uid).set(S)}
+  }catch(e){console.error('Firebase load:',e)}
+  setSyncDot('ok');midCheck();
+  showLoading(false);
+  showLogin(false);
+  setGreeting();updatePomoUI();renderAll();
+}
 
+// 1. Primeiro verifica se voltou de um redirect do Google
+showLoading(true);
+auth.getRedirectResult().then(async result=>{
+  if(result&&result.user){
+    // Voltou do redirect com sucesso — entra direto
+    await enterApp(result.user);
+  }
+  // Se não voltou de redirect, onAuthStateChanged vai resolver
+}).catch(e=>{
+  console.error('Redirect error:',e);
+  // Não faz nada — onAuthStateChanged vai mostrar login se necessário
+});
+
+// 2. Observer de estado (também cobre login persistido / já logado)
+let firstAuth=true;
 auth.onAuthStateChanged(async user=>{
   if(user){
-    currentUser=user;
-    const chip=document.getElementById('user-chip');
-    const nEl=document.getElementById('user-chip-name');
-    const aEl=document.getElementById('user-chip-av');
-    if(chip)chip.style.display='flex';
-    if(nEl)nEl.textContent=(user.displayName||'Usuário').split(' ')[0];
-    if(aEl){if(user.photoURL)aEl.innerHTML=`<img src="${user.photoURL}" alt="av" style="width:100%;height:100%;border-radius:50%"/>`;else aEl.textContent=(user.displayName||'U')[0].toUpperCase()}
-    const sbN=document.getElementById('sb-name');if(sbN)sbN.textContent=(user.displayName||'Usuário').split(' ')[0];
-    const sbA=document.getElementById('sb-av');if(sbA&&user.photoURL)sbA.innerHTML=`<img src="${user.photoURL}" alt="av" style="width:100%;height:100%;border-radius:50%"/>`;
-    try{
-      const doc=await db.collection('users').doc(user.uid).get();
-      if(doc.exists){S={...S,...doc.data()}}
-      else{const local=localStorage.getItem('uf4');if(local)S={...S,...JSON.parse(local)};await db.collection('users').doc(user.uid).set(S)}
-    }catch(e){console.error('Firebase load:',e)}
-    setSyncDot('ok');midCheck();
-    document.getElementById('login-screen').classList.add('hidden');
-    setGreeting();updatePomoUI();renderAll();
+    await enterApp(user);
   }else{
+    // Só mostra login depois que o redirect foi checado (evita flash)
+    if(firstAuth){
+      // Aguarda um tick para o getRedirectResult ter chance de resolver
+      setTimeout(()=>{
+        if(!currentUser){showLoading(false);showLogin(true);}
+      },1200);
+    }else{
+      showLoading(false);showLogin(true);
+    }
     currentUser=null;
-    document.getElementById('login-screen').classList.remove('hidden');
     const chip=document.getElementById('user-chip');if(chip)chip.style.display='none';
   }
+  firstAuth=false;
 });
 </script>
 </body>
